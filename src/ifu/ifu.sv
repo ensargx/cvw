@@ -378,6 +378,45 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Decode stage pipeline register and compressed instruction decoding.
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // Shadow Stack
+  // if (P.SHADOW_STACK_ENABLED) begin : shadowstk
+  if (1) begin : shadowstk
+    logic CallD, CallE, CallM, CallW;
+    logic ReturnD, ReturnE, ReturnM, ReturnW;
+
+    logic [P.XLEN-1:0] sstackregs[32];
+    logic [4:0]  sptr;
+
+    assign ReturnD = JumpD & (InstrD[19:15] & 5'h1B) == 5'h01; // return must return to ra or x5
+    assign CallD = JumpD & (InstrD[11:7] & 5'h1B) == 5'h01; // call(r) must link to ra or x5
+
+    flopenrc #(2) InstrClassRegE(clk, reset,  FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
+    flopenrc #(2) InstrClassRegM(clk, reset,  FlushM, ~StallM, {CallE, ReturnE}, {CallM, ReturnM});
+    flopenrc #(2) InstrClassRegW(clk, reset,  FlushW, ~StallW, {CallM, ReturnM}, {CallW, ReturnW});
+
+    always @(posedge clk) begin
+      if (reset) begin
+        assign sptr = 0;
+      end
+
+      else if (!StallE && InstrValidE) begin
+        if (CallE) begin
+          $display("call %h", PCLinkE);
+          sstackregs[sptr] <= PCLinkE;
+          sptr <= sptr + 5'd1;
+        end else if (ReturnE) begin
+          logic [4:0] prev_sptr;
+          $display("return %h", IEUAdrE);
+          prev_sptr = sptr - 5'd1;
+          if (sstackregs[prev_sptr] != IEUAdrE) begin
+            $display("ROP DETECTED");
+          end
+          sptr <= prev_sptr;
+        end
+      end
+    end
+  end
+
   // Decode stage pipeline register and logic
   flopenrc #(P.XLEN) PCDReg(clk, reset, FlushD, ~StallD, PCF, PCD);
 
