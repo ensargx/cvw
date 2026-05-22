@@ -378,44 +378,91 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Decode stage pipeline register and compressed instruction decoding.
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // Shadow Stack
-  // if (P.SHADOW_STACK_ENABLED) begin : shadowstk
   if (1) begin : shadowstk
-    logic CallD, CallE, CallM, CallW;
-    logic ReturnD, ReturnE, ReturnM, ReturnW;
 
-    logic [P.XLEN-1:0] sstackregs[32];
-    logic [4:0]  sptr;
+    logic CallD,   CallE;
+    logic ReturnD, ReturnE;
 
-    assign ReturnD = JumpD & (InstrD[19:15] & 5'h1B) == 5'h01; // return must return to ra or x5
-    assign CallD = JumpD & (InstrD[11:7] & 5'h1B) == 5'h01; // call(r) must link to ra or x5
+    assign ReturnD = JumpD & ((InstrD[19:15] & 5'h1B) == 5'h01);
+    assign CallD   = JumpD & ((InstrD[11:7]  & 5'h1B) == 5'h01);
 
-    flopenrc #(2) InstrClassRegE(clk, reset,  FlushE, ~StallE, {CallD, ReturnD}, {CallE, ReturnE});
-    flopenrc #(2) InstrClassRegM(clk, reset,  FlushM, ~StallM, {CallE, ReturnE}, {CallM, ReturnM});
-    flopenrc #(2) InstrClassRegW(clk, reset,  FlushW, ~StallW, {CallM, ReturnM}, {CallW, ReturnW});
+    flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE,
+                                 {CallD, ReturnD}, {CallE, ReturnE});
 
-    always @(posedge clk) begin
+    localparam int SS_MEM_DEPTH = 1024;
+    localparam int SS_MEM_AW    = $clog2(SS_MEM_DEPTH);
+
+    logic [P.XLEN-1:0]    ss_mem [0:SS_MEM_DEPTH-1];
+    logic [SS_MEM_AW-1:0] ss_mem_sp;
+
+    logic [P.XLEN-1:0] ss_cache [0:1];
+    logic [1:0]        ss_cnt;
+
+    logic [P.XLEN-1:0] ss_expected;
+    always_comb begin
+      case (ss_cnt)
+        2'd1:    ss_expected = ss_cache[0];
+        2'd2:    ss_expected = ss_cache[1];
+        default: ss_expected = '0;
+      endcase
+    end
+
+    wire ss_op = InstrValidE & ~StallE;
+
+    always_ff @(posedge clk) begin
       if (reset) begin
-        assign sptr = 0;
-      end
+        ss_mem_sp   <= '0;
+        ss_cnt      <= 2'd0;
+        ss_cache[0] <= '0;
+        ss_cache[1] <= '0;
 
-      else if (!StallE && InstrValidE) begin
+      end else if (ss_op) begin
+
         if (CallE) begin
-          $display("call %h", PCLinkE);
-          sstackregs[sptr] <= PCLinkE;
-          sptr <= sptr + 5'd1;
-        end else if (ReturnE) begin
-          logic [4:0] prev_sptr;
-          $display("return %h", IEUAdrE);
-          prev_sptr = sptr - 5'd1;
-          if (sstackregs[prev_sptr] != IEUAdrE) begin
+          case (ss_cnt)
+            2'd0: begin
+              ss_cache[0] <= PCLinkE;
+              ss_cnt      <= 2'd1;
+            end
+            2'd1: begin
+              ss_cache[1] <= PCLinkE;
+              ss_cnt      <= 2'd2;
+            end
+            2'd2: begin
+              ss_mem[ss_mem_sp] <= ss_cache[0];
+              ss_mem_sp         <= ss_mem_sp + {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+              ss_cache[0]       <= ss_cache[1];
+              ss_cache[1]       <= PCLinkE;
+            end
+            default: ;
+          endcase
+
+        end else if (ReturnE && ss_cnt != 2'd0) begin
+
+          if (ss_expected !== IEUAdrE)
             $display("ROP DETECTED");
-          end
-          sptr <= prev_sptr;
+
+          case (ss_cnt)
+            2'd1: begin
+              ss_cnt <= 2'd0;
+            end
+            2'd2: begin
+              if (ss_mem_sp != '0) begin
+                ss_cache[1] <= ss_cache[0];
+                ss_cache[0] <= ss_mem[ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1}];
+                ss_mem_sp   <= ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+              end else begin
+                ss_cnt <= 2'd1;
+              end
+            end
+            default: ;
+          endcase
+
         end
       end
     end
-  end
+
+  end // shadowstk
 
   // Decode stage pipeline register and logic
   flopenrc #(P.XLEN) PCDReg(clk, reset, FlushD, ~StallD, PCF, PCD);
