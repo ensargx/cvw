@@ -391,9 +391,14 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
 
     localparam int SS_MEM_DEPTH = 1024;
     localparam int SS_MEM_AW    = $clog2(SS_MEM_DEPTH);
+    localparam int SS_MEM_WIDTH = P.XLEN+4;
 
-    logic [P.XLEN-1:0]    ss_mem [0:SS_MEM_DEPTH-1];
     logic [SS_MEM_AW-1:0] ss_mem_sp;
+    logic [SS_MEM_AW-1:0] ss_mem_raddr;
+    logic [SS_MEM_AW-1:0] ss_mem_waddr;
+    logic [SS_MEM_WIDTH-1:0] ss_mem_wdata;
+    logic [SS_MEM_WIDTH-1:0] ss_mem_rdata;
+    logic                 ss_mem_we;
 
     logic [P.XLEN-1:0] ss_cache [0:1];
     logic [1:0]        ss_cnt;
@@ -408,6 +413,15 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
     end
 
     wire ss_op = InstrValidE & ~StallE;
+
+    assign ss_mem_raddr = (ss_mem_sp == '0) ? '0 : ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+    assign ss_mem_waddr = ss_mem_sp;
+    assign ss_mem_wdata = {{(SS_MEM_WIDTH-P.XLEN){1'b0}}, ss_cache[0]};
+    assign ss_mem_we    = ss_op & CallE & (ss_cnt == 2'd2) & (ss_mem_sp != {SS_MEM_AW{1'b1}});
+
+    ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(SS_MEM_DEPTH), .WIDTH(SS_MEM_WIDTH)) ssram(
+      .clk, .ce1(1'b1), .ra1(ss_mem_raddr), .rd1(ss_mem_rdata),
+      .ce2(1'b1), .wa2(ss_mem_waddr), .wd2(ss_mem_wdata), .we2(ss_mem_we), .bwe2('1));
 
     always_ff @(posedge clk) begin
       if (reset) begin
@@ -429,10 +443,11 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
               ss_cnt      <= 2'd2;
             end
             2'd2: begin
-              ss_mem[ss_mem_sp] <= ss_cache[0];
-              ss_mem_sp         <= ss_mem_sp + {{(SS_MEM_AW-1){1'b0}}, 1'b1};
-              ss_cache[0]       <= ss_cache[1];
-              ss_cache[1]       <= PCLinkE;
+              if (ss_mem_sp != {SS_MEM_AW{1'b1}}) begin
+                ss_mem_sp   <= ss_mem_sp + {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+                ss_cache[0] <= ss_cache[1];
+                ss_cache[1] <= PCLinkE;
+              end
             end
             default: ;
           endcase
@@ -449,7 +464,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
             2'd2: begin
               if (ss_mem_sp != '0) begin
                 ss_cache[1] <= ss_cache[0];
-                ss_cache[0] <= ss_mem[ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1}];
+                ss_cache[0] <= ss_mem_rdata[P.XLEN-1:0];
                 ss_mem_sp   <= ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
               end else begin
                 ss_cnt <= 2'd1;
