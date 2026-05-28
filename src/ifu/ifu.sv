@@ -378,7 +378,11 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Decode stage pipeline register and compressed instruction decoding.
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  if (1) begin : shadowstk
+`ifndef SSTACK_ENABLED
+  `define SSTACK_ENABLED 1
+`endif
+
+  if (`SSTACK_ENABLED) begin : shadowstk
 
     logic CallD,   CallE;
     logic ReturnD, ReturnE;

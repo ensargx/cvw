@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+#
+# Run paired CVW simulations with and without the IFU shadow stack.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+import argparse
+import csv
+import datetime as dt
+import os
+import re
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def repo_root() -> Path:
+    return Path(os.environ.get("WALLY", Path(__file__).resolve().parent.parent)).resolve()
+
+
+def parse_args():
+    root = repo_root()
+    parser = argparse.ArgumentParser(description="Benchmark CVW with and without SSTACK_ENABLED.")
+    parser.add_argument("--config", default="rv64gc", help="CVW config passed to wsim")
+    parser.add_argument("--repeat", type=int, default=3, help="Timed runs per ELF per variant")
+    parser.add_argument("--outdir", default="", help="Result directory; default is sim/sstack-bench/<timestamp>")
+    parser.add_argument("--elf", action="append", default=[], help="ELF to run; may be repeated")
+    parser.add_argument("--no-build-examples", action="store_true", help="Do not run make in example directories")
+    parser.add_argument("--keep-going", action="store_true", help="Continue after a failed simulation")
+    parser.add_argument("--wsim", default=str(root / "bin" / "wsim"), help="Path to wsim")
+    return parser.parse_args()
+
+
+def default_elfs(root: Path):
+    return [
+        root / "examples" / "C" / "hello" / "hello",
+        root / "examples" / "C" / "rop" / "hello",
+    ]
+
+
+def ensure_elf(root: Path, elf: Path, no_build: bool):
+    if elf.exists() or no_build:
+        return
+    makefile = elf.parent / "Makefile"
+    if makefile.exists():
+        subprocess.run(["make", "-C", str(elf.parent), elf.name], check=True, env={**os.environ, "WALLY": str(root)})
+
+
+def run_command(cmd, root: Path, log_path: Path):
+    start = time.perf_counter()
+    proc = subprocess.run(
+        cmd,
+        cwd=root / "src",
+        env={**os.environ, "WALLY": str(root)},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    elapsed = time.perf_counter() - start
+    log_path.write_text(proc.stdout)
+    return proc.returncode, elapsed, proc.stdout
+
+
+def parse_output(text: str):
+    sim = {}
+    finish = re.search(r"\$finish at ([0-9.]+)([a-z]+); walltime ([0-9.]+) s", text)
+    if finish:
+        scale = {"ps": 1e-3, "ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}.get(finish.group(2), 1.0)
+        sim["sim_time_ns"] = float(finish.group(1)) * scale
+        sim["sim_wall_s"] = float(finish.group(3))
+    cpu = re.search(r"Verilator: cpu ([0-9.]+) s on", text)
+    if cpu:
+        sim["sim_cpu_s"] = float(cpu.group(1))
+    build = re.search(r"Verilator: Walltime ([0-9.]+) s", text)
+    if build:
+        sim["build_wall_s"] = float(build.group(1))
+    sim["rop_detected"] = text.count("ROP DETECTED")
+    return sim
+
+
+def wsim_cmd(args, root: Path, elf: Path, enabled: int):
+    return [
+        args.wsim,
+        "--sim",
+        "verilator",
+        "--define",
+        f"+define+SSTACK_ENABLED={enabled}",
+        args.config,
+        "--elf",
+        str(elf),
+    ]
+
+
+def summarize(rows, outdir: Path):
+    groups = {}
+    for row in rows:
+        if row["phase"] != "run" or row["return_code"] != "0":
+            continue
+        key = (row["variant"], row["elf"])
+        groups.setdefault(key, []).append(row)
+
+    lines = [
+        "# Shadow Stack Benchmark Results",
+        "",
+        "| ELF | Variant | Runs | Avg host elapsed (s) | Avg sim wall (s) | Avg sim time (ns) | ROP detections |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for (variant, elf), group in sorted(groups.items()):
+        host = [float(r["host_elapsed_s"]) for r in group if r["host_elapsed_s"]]
+        sim_wall = [float(r["sim_wall_s"]) for r in group if r["sim_wall_s"]]
+        sim_time = [float(r["sim_time_ns"]) for r in group if r["sim_time_ns"]]
+        rop = sum(int(r["rop_detected"]) for r in group if r["rop_detected"])
+        lines.append(
+            f"| `{elf}` | {variant} | {len(group)} | "
+            f"{statistics.mean(host):.6f} | "
+            f"{statistics.mean(sim_wall):.6f} | "
+            f"{statistics.mean(sim_time):.3f} | {rop} |"
+        )
+    (outdir / "summary.md").write_text("\n".join(lines) + "\n")
+
+
+def main():
+    args = parse_args()
+    root = repo_root()
+    outdir = Path(args.outdir) if args.outdir else root / "sim" / "sstack-bench" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    outdir.mkdir(parents=True, exist_ok=True)
+    logdir = outdir / "logs"
+    logdir.mkdir()
+
+    elfs = [Path(e).resolve() for e in args.elf] if args.elf else default_elfs(root)
+    for elf in elfs:
+        ensure_elf(root, elf, args.no_build_examples)
+        if not elf.exists():
+            raise FileNotFoundError(f"ELF not found: {elf}")
+
+    rows = []
+    variants = [("without-sstack", 0), ("with-sstack", 1)]
+    for variant, enabled in variants:
+        warm_elf = elfs[0]
+        log_path = logdir / f"{variant}.warmup.{warm_elf.name}.log"
+        rc, elapsed, text = run_command(wsim_cmd(args, root, warm_elf, enabled), root, log_path)
+        parsed = parse_output(text)
+        rows.append({
+            "phase": "warmup",
+            "variant": variant,
+            "sstack_enabled": str(enabled),
+            "config": args.config,
+            "elf": str(warm_elf.relative_to(root) if warm_elf.is_relative_to(root) else warm_elf),
+            "run": "0",
+            "return_code": str(rc),
+            "host_elapsed_s": f"{elapsed:.6f}",
+            "sim_time_ns": parsed.get("sim_time_ns", ""),
+            "sim_wall_s": parsed.get("sim_wall_s", ""),
+            "sim_cpu_s": parsed.get("sim_cpu_s", ""),
+            "build_wall_s": parsed.get("build_wall_s", ""),
+            "rop_detected": str(parsed.get("rop_detected", 0)),
+            "log": str(log_path),
+        })
+        if rc != 0 and not args.keep_going:
+            break
+
+        for elf in elfs:
+            for run in range(1, args.repeat + 1):
+                rel = str(elf.relative_to(root) if elf.is_relative_to(root) else elf)
+                safe_name = rel.replace("/", "_")
+                log_path = logdir / f"{variant}.{safe_name}.{run}.log"
+                rc, elapsed, text = run_command(wsim_cmd(args, root, elf, enabled), root, log_path)
+                parsed = parse_output(text)
+                rows.append({
+                    "phase": "run",
+                    "variant": variant,
+                    "sstack_enabled": str(enabled),
+                    "config": args.config,
+                    "elf": rel,
+                    "run": str(run),
+                    "return_code": str(rc),
+                    "host_elapsed_s": f"{elapsed:.6f}",
+                    "sim_time_ns": parsed.get("sim_time_ns", ""),
+                    "sim_wall_s": parsed.get("sim_wall_s", ""),
+                    "sim_cpu_s": parsed.get("sim_cpu_s", ""),
+                    "build_wall_s": parsed.get("build_wall_s", ""),
+                    "rop_detected": str(parsed.get("rop_detected", 0)),
+                    "log": str(log_path),
+                })
+                if rc != 0 and not args.keep_going:
+                    break
+
+    fields = [
+        "phase", "variant", "sstack_enabled", "config", "elf", "run", "return_code",
+        "host_elapsed_s", "sim_time_ns", "sim_wall_s", "sim_cpu_s", "build_wall_s",
+        "rop_detected", "log",
+    ]
+    csv_path = outdir / "results.csv"
+    with csv_path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    summarize(rows, outdir)
+    print(f"Wrote {csv_path}")
+    print(f"Wrote {outdir / 'summary.md'}")
+    return 0 if all(r["return_code"] == "0" for r in rows) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
