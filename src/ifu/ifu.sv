@@ -35,7 +35,7 @@ module ifu import cvw::*;  #(parameter cvw_t P,
   // Command from CPU
   input  logic                 InvalidateICacheM,                        // Clears all instruction cache valid bits
   input  logic                 CSRWriteFenceM,                           // CSR write or fence instruction, PCNextF = the next valid PC (typically PCE)
-  input  logic                 InstrValidD, InstrValidE,
+  input  logic                 InstrValidD, InstrValidE, InstrValidM,
   input  logic                 BranchD, BranchE,
   input  logic                 JumpD, JumpE,
   // Bus interface
@@ -97,7 +97,8 @@ module ifu import cvw::*;  #(parameter cvw_t P,
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
   output logic                 InstrAccessFaultF,                        // Instruction access fault
   output logic                 ICacheAccess,                             // Report I$ read to performance counters
-  output logic                 ICacheMiss                                // Report I$ miss to performance counters
+  output logic                 ICacheMiss,                               // Report I$ miss to performance counters
+  output logic                 SStackViolationM                          // Shadow stack detected a return-address violation
 );
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
@@ -381,14 +382,18 @@ module ifu import cvw::*;  #(parameter cvw_t P,
 
   if (SSTACK_ENABLED) begin : shadowstk
 
-    logic CallD,   CallE;
-    logic ReturnD, ReturnE;
+    logic CallD,   CallE,   CallM;
+    logic ReturnD, ReturnE, ReturnM;
+    logic [P.XLEN-1:0] PCLinkM;
 
     assign ReturnD = JumpD & ((InstrD[19:15] & 5'h1B) == 5'h01);
     assign CallD   = JumpD & ((InstrD[11:7]  & 5'h1B) == 5'h01);
 
     flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE,
                                  {CallD, ReturnD}, {CallE, ReturnE});
+    flopenrc #(2) InstrClassRegM(clk, reset, FlushM, ~StallM,
+                                 {CallE, ReturnE}, {CallM, ReturnM});
+    flopenrc #(P.XLEN) PCLinkMReg(clk, reset, FlushM, ~StallM, PCLinkE, PCLinkM);
 
     localparam int SS_MEM_DEPTH = 1024;
     localparam int SS_MEM_AW    = $clog2(SS_MEM_DEPTH);
@@ -405,6 +410,8 @@ module ifu import cvw::*;  #(parameter cvw_t P,
     logic [1:0]        ss_cnt;
 
     logic [P.XLEN-1:0] ss_expected;
+    logic [P.XLEN-1:0] ss_return_target;
+    logic              ss_overflow, ss_underflow, ss_mismatch;
     always_comb begin
       case (ss_cnt)
         2'd1:    ss_expected = ss_cache[0];
@@ -413,12 +420,18 @@ module ifu import cvw::*;  #(parameter cvw_t P,
       endcase
     end
 
-    wire ss_op = InstrValidE & ~StallE;
+    assign ss_return_target = {IEUAdrM[P.XLEN-1:1], 1'b0};
+
+    wire ss_op = InstrValidM & ~StallM & ~FlushM;
+    assign ss_overflow       = CallM & (ss_cnt == 2'd2) & (ss_mem_sp == {SS_MEM_AW{1'b1}});
+    assign ss_underflow      = ReturnM & (ss_cnt == 2'd0);
+    assign ss_mismatch       = ReturnM & (ss_cnt != 2'd0) & (ss_expected != ss_return_target);
+    assign SStackViolationM  = ss_op & (ss_overflow | ss_underflow | ss_mismatch);
 
     assign ss_mem_raddr = (ss_mem_sp == '0) ? '0 : ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
     assign ss_mem_waddr = ss_mem_sp;
     assign ss_mem_wdata = {{(SS_MEM_WIDTH-P.XLEN){1'b0}}, ss_cache[0]};
-    assign ss_mem_we    = ss_op & CallE & (ss_cnt == 2'd2) & (ss_mem_sp != {SS_MEM_AW{1'b1}});
+    assign ss_mem_we    = ss_op & CallM & (ss_cnt == 2'd2) & (ss_mem_sp != {SS_MEM_AW{1'b1}});
 
     ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(SS_MEM_DEPTH), .WIDTH(SS_MEM_WIDTH)) ssram(
       .clk, .ce1(1'b1), .ra1(ss_mem_raddr), .rd1(ss_mem_rdata),
@@ -433,31 +446,27 @@ module ifu import cvw::*;  #(parameter cvw_t P,
 
       end else if (ss_op) begin
 
-        if (CallE) begin
+        if (CallM) begin
           case (ss_cnt)
             2'd0: begin
-              ss_cache[0] <= PCLinkE;
+              ss_cache[0] <= PCLinkM;
               ss_cnt      <= 2'd1;
             end
             2'd1: begin
-              ss_cache[1] <= PCLinkE;
+              ss_cache[1] <= PCLinkM;
               ss_cnt      <= 2'd2;
             end
             2'd2: begin
               if (ss_mem_sp != {SS_MEM_AW{1'b1}}) begin
                 ss_mem_sp   <= ss_mem_sp + {{(SS_MEM_AW-1){1'b0}}, 1'b1};
                 ss_cache[0] <= ss_cache[1];
-                ss_cache[1] <= PCLinkE;
+                ss_cache[1] <= PCLinkM;
               end
             end
             default: ;
           endcase
 
-        end else if (ReturnE && ss_cnt != 2'd0) begin
-
-          if (ss_expected !== IEUAdrE)
-            $display("ROP DETECTED");
-
+        end else if (ReturnM) begin
           case (ss_cnt)
             2'd1: begin
               ss_cnt <= 2'd0;
@@ -478,6 +487,8 @@ module ifu import cvw::*;  #(parameter cvw_t P,
       end
     end
 
+  end else begin : shadowstk
+    assign SStackViolationM = 1'b0;
   end // shadowstk
 
   // Decode stage pipeline register and logic
