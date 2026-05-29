@@ -77,6 +77,19 @@ def parse_output(text: str):
     if build:
         sim["build_wall_s"] = float(build.group(1))
     sim["rop_detected"] = text.count("ROP DETECTED")
+    for index, value, name in re.findall(r"Cnt\[\s*(\d+)\]\s+=\s+(\d+)\s+(.+)", text):
+        key = {
+            "Mcycle": "cycles",
+            "InstRet": "instret",
+            "Return": "returns",
+            "Call": "calls",
+            "D Cache Access": "dcache_accesses",
+            "D Cache Miss": "dcache_misses",
+            "I Cache Access": "icache_accesses",
+            "I Cache Miss": "icache_misses",
+        }.get(name.strip())
+        if key:
+            sim[key] = int(value)
     return sim
 
 
@@ -85,8 +98,8 @@ def wsim_cmd(args, root: Path, elf: Path, enabled: int):
         args.wsim,
         "--sim",
         "verilator",
-        "--define",
-        f"+define+SSTACK_ENABLED={enabled}",
+        "--params",
+        f"PrintHPMCounters=1 SSTACK_ENABLED={enabled}",
         args.config,
         "--elf",
         str(elf),
@@ -104,19 +117,45 @@ def summarize(rows, outdir: Path):
     lines = [
         "# Shadow Stack Benchmark Results",
         "",
-        "| ELF | Variant | Runs | Avg host elapsed (s) | Avg sim wall (s) | Avg sim time (ns) | ROP detections |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "| ELF | Variant | Runs | Avg cycles | Avg calls | Avg returns | Avg I$ hit rate | Avg I$ hits/misses | Avg D$ hit rate | Avg D$ hits/misses | Avg host elapsed (s) | Avg sim wall (s) | ROP found | ROP detections |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
     ]
+    def mean_or_blank(values, fmt):
+        return format(statistics.mean(values), fmt) if values else ""
+
+    def cache_stats(group, prefix):
+        accesses = [int(r[f"{prefix}_accesses"]) for r in group if r[f"{prefix}_accesses"]]
+        misses = [int(r[f"{prefix}_misses"]) for r in group if r[f"{prefix}_misses"]]
+        if not accesses or not misses:
+            return "", ""
+        avg_accesses = statistics.mean(accesses)
+        avg_misses = statistics.mean(misses)
+        avg_hits = avg_accesses - avg_misses
+        hit_rate = (avg_hits / avg_accesses * 100.0) if avg_accesses else 0.0
+        return f"{hit_rate:.2f}%", f"{avg_hits:.0f}/{avg_misses:.0f}"
+
     for (variant, elf), group in sorted(groups.items()):
         host = [float(r["host_elapsed_s"]) for r in group if r["host_elapsed_s"]]
         sim_wall = [float(r["sim_wall_s"]) for r in group if r["sim_wall_s"]]
-        sim_time = [float(r["sim_time_ns"]) for r in group if r["sim_time_ns"]]
+        cycles = [int(r["cycles"]) for r in group if r["cycles"]]
+        calls = [int(r["calls"]) for r in group if r["calls"]]
+        returns = [int(r["returns"]) for r in group if r["returns"]]
+        icache_hit_rate, icache_hits_misses = cache_stats(group, "icache")
+        dcache_hit_rate, dcache_hits_misses = cache_stats(group, "dcache")
         rop = sum(int(r["rop_detected"]) for r in group if r["rop_detected"])
         lines.append(
             f"| `{elf}` | {variant} | {len(group)} | "
-            f"{statistics.mean(host):.6f} | "
-            f"{statistics.mean(sim_wall):.6f} | "
-            f"{statistics.mean(sim_time):.3f} | {rop} |"
+            f"{mean_or_blank(cycles, '.0f')} | "
+            f"{mean_or_blank(calls, '.0f')} | "
+            f"{mean_or_blank(returns, '.0f')} | "
+            f"{icache_hit_rate} | "
+            f"{icache_hits_misses} | "
+            f"{dcache_hit_rate} | "
+            f"{dcache_hits_misses} | "
+            f"{mean_or_blank(host, '.6f')} | "
+            f"{mean_or_blank(sim_wall, '.6f')} | "
+            f"{'yes' if rop else 'no'} | "
+            f"{rop} |"
         )
     (outdir / "summary.md").write_text("\n".join(lines) + "\n")
 
@@ -155,6 +194,14 @@ def main():
             "sim_wall_s": parsed.get("sim_wall_s", ""),
             "sim_cpu_s": parsed.get("sim_cpu_s", ""),
             "build_wall_s": parsed.get("build_wall_s", ""),
+            "cycles": parsed.get("cycles", ""),
+            "instret": parsed.get("instret", ""),
+            "calls": parsed.get("calls", ""),
+            "returns": parsed.get("returns", ""),
+            "icache_accesses": parsed.get("icache_accesses", ""),
+            "icache_misses": parsed.get("icache_misses", ""),
+            "dcache_accesses": parsed.get("dcache_accesses", ""),
+            "dcache_misses": parsed.get("dcache_misses", ""),
             "rop_detected": str(parsed.get("rop_detected", 0)),
             "log": str(log_path),
         })
@@ -181,6 +228,14 @@ def main():
                     "sim_wall_s": parsed.get("sim_wall_s", ""),
                     "sim_cpu_s": parsed.get("sim_cpu_s", ""),
                     "build_wall_s": parsed.get("build_wall_s", ""),
+                    "cycles": parsed.get("cycles", ""),
+                    "instret": parsed.get("instret", ""),
+                    "calls": parsed.get("calls", ""),
+                    "returns": parsed.get("returns", ""),
+                    "icache_accesses": parsed.get("icache_accesses", ""),
+                    "icache_misses": parsed.get("icache_misses", ""),
+                    "dcache_accesses": parsed.get("dcache_accesses", ""),
+                    "dcache_misses": parsed.get("dcache_misses", ""),
                     "rop_detected": str(parsed.get("rop_detected", 0)),
                     "log": str(log_path),
                 })
@@ -190,6 +245,8 @@ def main():
     fields = [
         "phase", "variant", "sstack_enabled", "config", "elf", "run", "return_code",
         "host_elapsed_s", "sim_time_ns", "sim_wall_s", "sim_cpu_s", "build_wall_s",
+        "cycles", "instret", "calls", "returns",
+        "icache_accesses", "icache_misses", "dcache_accesses", "dcache_misses",
         "rop_detected", "log",
     ]
     csv_path = outdir / "results.csv"

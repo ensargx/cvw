@@ -26,7 +26,8 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ifu import cvw::*;  #(parameter cvw_t P) (
+module ifu import cvw::*;  #(parameter cvw_t P,
+                             parameter logic SSTACK_ENABLED = 1'b1) (
   input  logic                 clk, reset,
   input  logic                 StallF, StallD, StallE, StallM, StallW,
   input  logic                 FlushD, FlushE, FlushM, FlushW,
@@ -378,11 +379,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Decode stage pipeline register and compressed instruction decoding.
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
-`ifndef SSTACK_ENABLED
-  `define SSTACK_ENABLED 1
-`endif
-
-  if (`SSTACK_ENABLED) begin : shadowstk
+  if (SSTACK_ENABLED) begin : shadowstk
 
     logic CallD,   CallE;
     logic ReturnD, ReturnE;

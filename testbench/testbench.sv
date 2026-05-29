@@ -41,6 +41,7 @@ module testbench;
   /* verilator lint_off WIDTHEXPAND */
   parameter DEBUG=0;
   parameter PrintHPMCounters=0;
+  parameter SSTACK_ENABLED=1;
   parameter BPRED_LOGGER=0;
   parameter I_CACHE_ADDR_LOGGER=0;
   parameter D_CACHE_ADDR_LOGGER=0;
@@ -661,7 +662,7 @@ module testbench;
 
   end
 
-  wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
+  wallypipelinedsoc  #(.P(P), .SSTACK_ENABLED(SSTACK_ENABLED)) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,

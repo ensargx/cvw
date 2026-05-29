@@ -27,7 +27,8 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
+module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
+                                           parameter logic SSTACK_ENABLED = 1'b1) (
    input  logic                  clk, reset,
    // Privileged
    input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
@@ -172,7 +173,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic                          wfiM, IntPendingM;
 
   // instruction fetch unit: PC, branch prediction, instruction cache
-  ifu #(P) ifu(.clk, .reset,
+  ifu #(.P(P), .SSTACK_ENABLED(SSTACK_ENABLED)) ifu(.clk, .reset,
     .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
     .InstrValidE, .InstrValidD,
     .BranchD, .BranchE, .JumpD, .JumpE, .ICacheStallF,

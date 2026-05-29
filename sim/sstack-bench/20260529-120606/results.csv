@@ -1,0 +1,5 @@
+phase,variant,sstack_enabled,config,elf,run,return_code,host_elapsed_s,sim_time_ns,sim_wall_s,sim_cpu_s,build_wall_s,cycles,instret,calls,returns,icache_accesses,icache_misses,dcache_accesses,dcache_misses,rop_detected,log
+warmup,without-sstack,0,rv64gc,examples/C/rop/hello,0,0,0.964493,86.0,0.182,0.179,,8604,3948,64,64,4067,19,227,10,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260529-120606/logs/without-sstack.warmup.hello.log
+run,without-sstack,0,rv64gc,examples/C/rop/hello,1,0,0.973994,86.0,0.187,0.185,,8604,3948,64,64,4067,19,227,10,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260529-120606/logs/without-sstack.examples_C_rop_hello.1.log
+warmup,with-sstack,1,rv64gc,examples/C/rop/hello,0,0,0.958431,86.0,0.173,0.17,,8604,3948,64,64,4067,19,227,10,1,/home/ensargok/dev/cvw/sim/sstack-bench/20260529-120606/logs/with-sstack.warmup.hello.log
+run,with-sstack,1,rv64gc,examples/C/rop/hello,1,0,0.966853,86.0,0.194,0.192,,8604,3948,64,64,4067,19,227,10,1,/home/ensargok/dev/cvw/sim/sstack-bench/20260529-120606/logs/with-sstack.examples_C_rop_hello.1.log
