@@ -1,0 +1,4 @@
+0000600d # return chain completed
+0000000b # mcause for ecall from terminating tests in M mode
+00000000 # mtval of ecall
+00001800 # masked out mstatus.MPP = 11, mstatus.MPIE = 0, and mstatus.MIE = 0
