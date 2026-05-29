@@ -1,11 +1,13 @@
-TARGET = hello
+TARGETS = hello rop_direct rop_chain rop_nested
 
-$(TARGET): $(TARGET).c Makefile
-	riscv64-unknown-elf-gcc -o $(TARGET) -gdwarf-2 -O\
+all: $(TARGETS)
+
+%: %.c Makefile
+	riscv64-unknown-elf-gcc -o $@ -gdwarf-2 -O\
 	  -march=rv64gc -mabi=lp64d -mcmodel=medany \
 	  -nostdlib -static -lm -fno-tree-loop-distribute-patterns \
 	  -T../common/test.ld -I../common \
-	  $(TARGET).c ../common/crt.S ../common/syscalls.c
+	  $< ../common/crt.S ../common/syscalls.c
 # Compiler flags:
 #  -o $(TARGET) defines the name of the output file
 #  -g generates debugging symbols for gdb
@@ -26,4 +28,4 @@ $(TARGET): $(TARGET).c Makefile
 #     -fno-common -fno-builtin-printf -nostartfiles -lgcc \
 
 clean:
-	rm -f $(TARGET) $(TARGET).objdump* $(TARGET).memfile
+	rm -f $(TARGETS) *.objdump* *.memfile

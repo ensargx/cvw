@@ -1,7 +1,0 @@
-phase,variant,sstack_enabled,config,elf,run,return_code,host_elapsed_s,sim_time_ns,sim_wall_s,sim_cpu_s,build_wall_s,rop_detected,log
-warmup,without-sstack,0,rv64gc,examples/C/hello/hello,0,0,569.084991,116.0,0.22,0.217,568.433,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/without-sstack.warmup.hello.log
-run,without-sstack,0,rv64gc,examples/C/hello/hello,1,0,0.966727,116.0,0.225,0.223,,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/without-sstack.examples_C_hello_hello.1.log
-run,without-sstack,0,rv64gc,examples/C/rop/hello,1,0,0.894616,86.0,0.168,0.165,,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/without-sstack.examples_C_rop_hello.1.log
-warmup,with-sstack,1,rv64gc,examples/C/hello/hello,0,0,551.980102,116.0,0.243,0.24,551.276,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/with-sstack.warmup.hello.log
-run,with-sstack,1,rv64gc,examples/C/hello/hello,1,0,1.088191,116.0,0.246,0.243,,0,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/with-sstack.examples_C_hello_hello.1.log
-run,with-sstack,1,rv64gc,examples/C/rop/hello,1,0,1.063199,86.0,0.18,0.178,,1,/home/ensargok/dev/cvw/sim/sstack-bench/20260526-231758/logs/with-sstack.examples_C_rop_hello.1.log
