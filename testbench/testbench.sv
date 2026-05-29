@@ -111,6 +111,7 @@ module testbench;
   logic        SPIIn, SPIOut;
   logic [3:0]  SPICS;
   logic        SPICLK;
+  logic        SStackViolationM;
   logic        SDCCmd;
   logic        SDCIn;
   logic [3:0]  SDCCS;
@@ -666,7 +667,11 @@ module testbench;
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SStackViolationM,
+    .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
+
+  always_ff @(posedge clk)
+    if (SStackViolationM) $display("ROP DETECTED");
 
   // generate clock to sequence tests
   always begin
