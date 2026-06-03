@@ -411,7 +411,7 @@ module ifu import cvw::*;  #(parameter cvw_t P,
 
     logic [P.XLEN-1:0] ss_expected;
     logic [P.XLEN-1:0] ss_return_target;
-    logic              ss_overflow, ss_underflow, ss_mismatch;
+    logic              ss_overflow, ss_underflow, ss_mismatch, ss_violation_raw;
     always_comb begin
       case (ss_cnt)
         2'd1:    ss_expected = ss_cache[0];
@@ -426,7 +426,8 @@ module ifu import cvw::*;  #(parameter cvw_t P,
     assign ss_overflow       = CallM & (ss_cnt == 2'd2) & (ss_mem_sp == {SS_MEM_AW{1'b1}});
     assign ss_underflow      = ReturnM & (ss_cnt == 2'd0);
     assign ss_mismatch       = ReturnM & (ss_cnt != 2'd0) & (ss_expected != ss_return_target);
-    assign SStackViolationM  = ss_op & (ss_overflow | ss_underflow | ss_mismatch);
+    assign ss_violation_raw = ss_overflow | ss_underflow | ss_mismatch;
+    assign SStackViolationM  = InstrValidM & ss_violation_raw;
 
     assign ss_mem_raddr = (ss_mem_sp == '0) ? '0 : ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
     assign ss_mem_waddr = ss_mem_sp;
