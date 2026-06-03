@@ -20,6 +20,14 @@ Generated signal:
 
 * SStackViolationM
 
+Current trap integration:
+
+* `src/privileged/trap.sv` accepts `SStackViolationM`
+* `SStackViolationM` contributes to `ExceptionM`
+* `TrapM` is generated from exceptions when not blocked by `CommittedF`
+* `CauseM` uses custom `SHADOW_STACK_CAUSE = 5'd16` for shadow stack violations
+* `mcause`/`scause` reporting must still be validated from logs or architectural observation
+
 ## Verified Functionality
 
 Implemented:
@@ -33,7 +41,7 @@ Implemented:
 * underflow detection
 * mismatch detection
 
-Validated with `wsim --sim verilator rv64gc --elf examples/C/rop/...`:
+Historical validation before trap integration with `wsim --sim verilator rv64gc --elf examples/C/rop/...`:
 
 * `rop_basic` raises `SStackViolationM` and prints `ROP DETECTED` in the testbench, then continues to `PoC`
 * `rop_direct` raises `SStackViolationM` and still reaches `ROP_DIRECT_WIN`
@@ -44,15 +52,11 @@ Validated with `wsim --sim verilator rv64gc --elf examples/C/rop/...`:
 
 No evidence currently found for:
 
-* trap generation
-* exception generation
-* CauseM integration
-* mcause integration
-* scause integration
 * dedicated shadow stack CSR support
 * software-visible configuration
 * software-visible status reporting
-* execution prevention after `SStackViolationM`
+* validated `mcause`/`scause` value for shadow stack traps
+* validated execution prevention after `SStackViolationM`
 
 ## Available Validation Programs
 
@@ -67,11 +71,26 @@ Programs:
 
 ## Known Risks
 
-* SStackViolationM currently does not stop execution in the available ROP simulations.
-* Violations are currently observable through the simulation testbench print path.
+* Trap integration exists in RTL, but functional validation must prove that ROP payloads no longer reach WIN strings.
+* Violations are observable through the simulation testbench print path as `ROP DETECTED`.
 * No software-visible reporting path found.
-* Architectural exception handling is not wired for shadow stack violations.
+* ABI/testbench shutdown may produce bogus late `ROP DETECTED` output.
+* Runtime protection must remain active; only end-of-test/shutdown artifacts may be masked or ignored.
 
 ## Next Goal
 
-Validate behavior using ROP examples and determine whether violations are architectural or simulation-only.
+Validate trap-integrated behavior using:
+
+* `rop_basic`
+* `rop_direct`
+* `rop_chain`
+* `rop_nested`
+
+For each test, confirm:
+
+* violation detected
+* trap generated
+* forbidden WIN string not reached
+* total cycles measured
+* cycle overhead computed against baseline
+* any end-of-test/shutdown artifact classified separately from runtime violations
