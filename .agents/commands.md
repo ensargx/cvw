@@ -21,19 +21,6 @@ CoreMark result inspection:
 
 rg -n "WALLY CoreMark Results|Elapsed MTIME|Elapsed MINSTRET|COREMARK/MHz|CPI|Load Stalls|Store Stalls|D-Cache|I-Cache|Branches|BTB|RAS|BP Class|Correct operation validated|Benchmark: coremark is done" logs/perf/{sstack_enabled,sstack_disabled}/coremark_rv64gc.log 2>&1
 
-Embench with SSTACK enabled:
-
-make -C benchmarks/embench clean
-make -C benchmarks/embench run > logs/perf/sstack_enabled/embench_rv32gc.log 2>&1
-
-Embench with SSTACK disabled:
-
-wsim --sim verilator rv32gc embench --params "SSTACK_ENABLED=0" > logs/perf/sstack_disabled/embench_rv32gc.log 2>&1
-
-Embench result inspection:
-
-rg -n "speed|size|geometric|benchmark|json|SUCCESS|FAIL|error|warning" logs/perf/{sstack_disabled,sstack_enabled}/embench_rv32gc.log benchmarks/embench/actual_embench_results || true
-
 Benchmark regression:
 
 regression-wally --benchmark > logs/perf/benchmark_regression.log 2>&1
