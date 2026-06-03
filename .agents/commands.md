@@ -1,78 +1,66 @@
 # Commands
 
-Run rop_basic:
-
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_basic
-
-Run rop_direct:
-
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_direct
-
-Run rop_chain:
-
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_chain
-
-Run rop_nested:
-
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_nested
-
-ROP tests:
-
-* rop_basic
-* rop_direct
-* rop_chain
-* rop_nested
-
 Create logs:
 
-mkdir -p logs
+mkdir -p logs/perf/sstack_enabled
+mkdir -p logs/perf/sstack_disabled
 
-Run with logging examples:
+CoreMark with SSTACK enabled:
 
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_basic | tee logs/rop_basic.log
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_direct | tee logs/rop_direct.log
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_chain | tee logs/rop_chain.log
-wsim --sim verilator rv64gc --elf examples/C/rop/rop_nested | tee logs/rop_nested.log
+make -C benchmarks/coremark clean
+make -C benchmarks/coremark all XLEN=64 ARCH=rv64gc
+wsim --sim verilator rv64gc coremark --params "SSTACK_ENABLED=1" > logs/perf/sstack_enabled/coremark_rv64gc.log 2>&1
 
-Search logs for violation and trap evidence:
+CoreMark with SSTACK disabled:
 
-rg -n "ROP DETECTED|SStackViolationM|TrapM|ExceptionM|CauseM|mcause|MCAUSE|cause" logs/rop_*.log
+make -C benchmarks/coremark clean
+make -C benchmarks/coremark all XLEN=64 ARCH=rv64gc
+wsim --sim verilator rv64gc coremark --params "SSTACK_ENABLED=0" > logs/perf/sstack_disabled/coremark_rv64gc.log 2>&1
 
-Search logs for forbidden WIN strings:
+CoreMark result inspection:
 
-rg -n "PoC|ROP_DIRECT_WIN|ROP_CHAIN_WIN|ROP_NESTED_WIN" logs/rop_*.log
+rg -n "WALLY CoreMark Results|Elapsed MTIME|Elapsed MINSTRET|COREMARK/MHz|CPI|Load Stalls|Store Stalls|D-Cache|I-Cache|Branches|BTB|RAS|BP Class|Correct operation validated|Benchmark: coremark is done" logs/perf/{sstack_enabled,sstack_disabled}/coremark_rv64gc.log 2>&1
 
-Per-test forbidden WIN checks:
+Embench with SSTACK enabled:
 
-rg -n "PoC" logs/rop_basic.log
-rg -n "ROP_DIRECT_WIN" logs/rop_direct.log
-rg -n "ROP_CHAIN_WIN" logs/rop_chain.log
-rg -n "ROP_NESTED_WIN" logs/rop_nested.log
+make -C benchmarks/embench clean
+make -C benchmarks/embench run > logs/perf/sstack_enabled/embench_rv32gc.log 2>&1
 
-Count detected violations:
+Embench with SSTACK disabled:
 
-rg -c "ROP DETECTED" logs/rop_basic.log logs/rop_direct.log logs/rop_chain.log logs/rop_nested.log
+wsim --sim verilator rv32gc embench --params "SSTACK_ENABLED=0" > logs/perf/sstack_disabled/embench_rv32gc.log 2>&1
 
-Search logs for cycle and completion evidence:
+Embench result inspection:
 
-rg -n "cycles|Mcycle|Minstret|SUCCESS|FAIL|Single Elf file tests are not signatured verified" logs/rop_*.log
+rg -n "speed|size|geometric|benchmark|json|SUCCESS|FAIL|error|warning" logs/perf/{sstack_disabled,sstack_enabled}/embench_rv32gc.log benchmarks/embench/actual_embench_results || true
 
-Inspect trap integration source:
+Benchmark regression:
 
-rg -n "SStackViolationM|SHADOW_STACK_CAUSE|ExceptionM|TrapM|CauseM" src/privileged/trap.sv src/privileged/csr.sv src/privileged/csrm.sv src/privileged/csrs.sv
+regression-wally --benchmark > logs/perf/benchmark_regression.log 2>&1
 
-Inspect testbench print/shutdown evidence:
+Benchmark regression inspection:
 
-rg -n "ROP DETECTED|SStackViolationM|finish|Single Elf file tests|cycles|Mcycle|Minstret" testbench/testbench.sv testbench/common/*.sv
+rg -n "embench|coremark|diff|SUCCESS|FAIL|error|warning|Regression failed|All tests ran without failures" logs/perf/benchmark_regression.log
+
+Find existing SSTACK parameterization:
+
+rg -n "SSTACK|SHADOW|Shadow|SStack|SStackViolationM|SHADOW_STACK|ShadowStack" src config testbench examples sim bin benchmarks
+
+Note:
+
+CoreMark can be run directly through `wsim` after `make all`.
+
+For Embench, if the Makefile does not pass `--params`, Stage 2 should add a minimal `PARAMS` variable to the Embench performance flow before comparing SSTACK enabled/disabled.
 
 Rules:
 
-* use wsim
+* use existing CVW performance tests only
+* do not use ROP tests
+* use CoreMark and Embench first
 * use repo-root paths
 * save logs when validating behavior
 * inspect logs with grep/rg only
 * do not stream long simulation logs
 * inspect final logs after simulations complete
-* classify `ROP DETECTED` after clear end-of-test/shutdown evidence as shutdown artifact
-* do not disable or mask runtime shadow stack protection
-* inspect src/ifu/ifu.sv before proposing RTL changes
+* do not disable or mask runtime shadow stack protection except through an approved SSTACK enable/disable parameter
+* if no clean SSTACK enable/disable parameter exists, propose a minimal parameterization patch and stop

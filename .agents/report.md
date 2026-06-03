@@ -1,64 +1,49 @@
 # Report Template
 
-## Functional Validation
+## Stage Status
 
-| Test | Violation Detected | Trap Generated | Forbidden WIN String | WIN Reached | Observed | Result |
-| ---- | ------------------ | -------------- | -------------------- | ----------- | -------- | ------ |
-| rop_basic | NOT TESTED | NOT TESTED | PoC | NOT TESTED | N/A | NOT TESTED |
-| rop_direct | NOT TESTED | NOT TESTED | ROP_DIRECT_WIN | NOT TESTED | N/A | NOT TESTED |
-| rop_chain | NOT TESTED | NOT TESTED | ROP_CHAIN_WIN | NOT TESTED | N/A | NOT TESTED |
-| rop_nested | NOT TESTED | NOT TESTED | ROP_NESTED_WIN | NOT TESTED | N/A | NOT TESTED |
+| Stage | Goal | Status | Evidence |
+| ---- | ---- | ------ | -------- |
+| 1 | Confirm existing performance tests run | NOT TESTED | N/A |
+| 2 | Parameterize performance flow | NOT TESTED | N/A |
+| 3 | Clean performance-test output handling | NOT TESTED | N/A |
+| 4 | Compare SSTACK enabled vs disabled | NOT TESTED | N/A |
 
-## Security Validation
+## Test Execution
 
-| Scenario | Expected | Observed | Result |
-| -------- | -------- | -------- | ------ |
+| Test | Log | Completion Evidence | Performance Evidence | Errors/Warnings | Result |
+| ---- | --- | ------------------- | -------------------- | --------------- | ------ |
+| CoreMark rv64gc | N/A | N/A | N/A | N/A | NOT TESTED |
+| Embench rv32gc | N/A | N/A | N/A | N/A | NOT TESTED |
+| benchmark regression | N/A | N/A | N/A | N/A | NOT TESTED |
 
-Scenarios:
+## CoreMark Metrics
 
-* mismatch
-* overflow
-* underflow
-* rop_basic
-* rop_direct
-* rop_chain
-* rop_nested
+| Config | SSTACK Mode | CoreMark/MHz | CPI | MTIME | MINSTRET | Load Stalls | Store Stalls | D$ Misses | I$ Misses | Branch Mispredicts |
+| ------ | ----------- | ------------ | --- | ----- | -------- | ----------- | ------------ | --------- | --------- | ------------------- |
+| rv64gc | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
-## Performance
+## Embench Metrics
 
-| Test | Baseline Cycles | Shadow/Trap Cycles | Delta Cycles | Overhead % |
-| ---- | --------------- | ------------------ | ------------ | ---------- |
-| rop_basic | N/A | N/A | N/A | N/A |
-| rop_direct | N/A | N/A | N/A | N/A |
-| rop_chain | N/A | N/A | N/A | N/A |
-| rop_nested | N/A | N/A | N/A | N/A |
+| Config | SSTACK Mode | Speed Result | Size Result | Geomean | Notes |
+| ------ | ----------- | ------------ | ----------- | ------- | ----- |
+| rv32gc | N/A | N/A | N/A | N/A | N/A |
 
-Overhead:
+## SSTACK Performance Comparison
 
-shadow_cycles - baseline_cycles = delta_cycles
-
-((shadow_cycles - baseline_cycles) / baseline_cycles) * 100
-
-## False Positives
-
-| Test | Runtime ROP_DETECT Count | Shutdown Artifact Count | Classification | Notes |
-| ---- | ------------------------ | ----------------------- | -------------- | ----- |
-| rop_basic | N/A | N/A | NOT TESTED | N/A |
-| rop_direct | N/A | N/A | NOT TESTED | N/A |
-| rop_chain | N/A | N/A | NOT TESTED | N/A |
-| rop_nested | N/A | N/A | NOT TESTED | N/A |
-
-Classification rules:
-
-* runtime `ROP DETECTED` before normal completion is a real violation
-* `ROP DETECTED` after clear end-of-test/shutdown evidence is a shutdown artifact
-* runtime protection must stay active
-* only end-of-test/shutdown artifacts may be masked or ignored
+| Test | Metric | SSTACK Disabled | SSTACK Enabled | Delta | Overhead % | Better Direction |
+| ---- | ------ | --------------- | -------------- | ----- | ---------- | ---------------- |
+| CoreMark | CoreMark/MHz | N/A | N/A | N/A | N/A | higher |
+| CoreMark | CPI | N/A | N/A | N/A | N/A | lower |
+| Embench | Speed | N/A | N/A | N/A | N/A | higher/lower depends on reported metric |
+| Embench | Size | N/A | N/A | N/A | N/A | lower |
 
 Rules:
 
 * use measured values only
 * mark unavailable values as N/A
 * tables before analysis
-* use grep/rg-only log inspection for validation evidence
-* report forbidden WIN string presence or absence for every ROP test
+* use grep/rg-only log inspection
+* do not invent performance numbers
+* do not compute overhead unless both enabled and disabled values exist
+* do not use ROP tests

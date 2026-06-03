@@ -1,4 +1,4 @@
-# Validation Checklist
+# Validation Checklist
 
 Before RTL changes:
 
@@ -13,60 +13,58 @@ After RTL changes:
 * no new warnings
 * existing functionality preserved
 
-Shadow Stack Checks:
-
-* call push works
-* return pop works
-* mismatch detected
-* overflow detected
-* underflow detected
-* nested calls work
-* ROP examples behave as expected
-* trap generated after shadow stack violation
-* `CauseM` uses shadow stack cause when observable
-* `mcause`/`scause` value recorded when observable
-
-ROP Trap Validation:
-
-* `rop_basic` detects violation
-* `rop_basic` generates trap
-* `rop_basic` does not reach `PoC`
-* `rop_direct` detects violation
-* `rop_direct` generates trap
-* `rop_direct` does not reach `ROP_DIRECT_WIN`
-* `rop_chain` detects violation
-* `rop_chain` generates trap
-* `rop_chain` does not reach `ROP_CHAIN_WIN`
-* `rop_nested` detects violation
-* `rop_nested` generates trap
-* `rop_nested` does not reach `ROP_NESTED_WIN`
-
 Performance Checks:
 
-* baseline cycles recorded
-* shadow/trap cycles recorded
-* delta cycles computed
-* overhead percent computed
+* performance logs directory created
+* CoreMark run completed or failure recorded
+* Embench run completed or failure recorded
+* benchmark regression completed or failure recorded
+* logs inspected with grep/rg only
+* completion evidence checked
+* CoreMark/MHz checked when available
+* CPI checked when available
+* MTIME checked when available
+* MINSTRET checked when available
+* cache counter evidence checked when available
+* branch counter evidence checked when available
+* missing measurements marked N/A
+* ROP tests not used
+
+Parameterization Checks:
+
+* existing SSTACK enable/disable parameter searched
+* if parameter exists, exact commands proposed
+* if parameter does not exist, minimal parameterization patch proposed
+* no edits made before APPLY THE PATCH
+* config selectable
+* test selectable
+* output directory selectable
+* SSTACK mode selectable
+* wsim params/defines considered
+* logs preserved per configuration
+
+Output Handling Checks:
+
+* performance-test output saved to logs
+* long simulation logs not streamed
+* final logs inspected only after simulations complete
+* errors and warnings checked
+* output does not break performance data collection
+
+SSTACK Enabled/Disabled Checks:
+
+* SSTACK enabled logs collected
+* SSTACK disabled logs collected
+* baseline values recorded
+* SSTACK values recorded
+* delta computed only when both values exist
+* overhead percent computed only when both values exist
 * unavailable measurements marked N/A
-
-False-Positive Checks:
-
-* shutdown-only `ROP DETECTED` classified separately
-* runtime `ROP DETECTED` not ignored
-* runtime protection remains active
-* only end-of-test/shutdown artifacts may be masked or ignored
-
-Log Inspection Rules:
-
-* use grep/rg-only log inspection
-* check violation evidence
-* check trap evidence
-* check forbidden WIN strings
-* check cycle evidence
-* check shutdown artifact evidence
 
 Status values:
 
 PASS
 FAIL
+BLOCKED
 NOT TESTED
+N/A
