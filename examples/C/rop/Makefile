@@ -1,4 +1,4 @@
-TARGETS = hello rop_direct rop_chain rop_nested
+TARGETS = rop_basic rop_direct rop_chain rop_nested
 
 all: $(TARGETS)
 
