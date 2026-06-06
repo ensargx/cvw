@@ -43,26 +43,51 @@ The performance work should happen in stages:
 
 ## Performance Tests
 
-Use existing CVW performance tests:
+Use only:
 
 * CoreMark
+
+Do not use:
+
 * Embench
 * benchmark regression
+* ROP tests
+* rv32* configurations
+
+Use only:
+
+* rv64gc
+* SSTACK_ENABLED=1
+* SSTACK_ENABLED=0
 
 ## Performance Measurements Needed
 
-For each selected performance test:
+For CoreMark rv64gc:
 
 * completion evidence
-* CoreMark/MHz when available
-* CPI when available
-* cycle or mcycle evidence
-* minstret evidence when available
-* cache and branch counter evidence when available
+* Correct operation validated evidence
+* Benchmark done evidence
+* CoreMark/MHz
+* CPI
+* Elapsed MTIME
+* Elapsed MINSTRET
+* Load Stalls
+* Store Stalls
+* D-Cache Accesses
+* D-Cache Misses
+* I-Cache Accesses
+* I-Cache Misses
+* Branches
+* Branches Miss Predictions
+* BTB Misses
+* Jump and JR
+* RAS Wrong
+* Returns
+* BP Class Wrong
 * SSTACK enabled result
 * SSTACK disabled result
 * delta
-* overhead percent
+* relative percent
 
 Overhead:
 

@@ -14,20 +14,28 @@
 | Test | Log | Completion Evidence | Performance Evidence | Errors/Warnings | Result |
 | ---- | --- | ------------------- | -------------------- | --------------- | ------ |
 | CoreMark rv64gc | N/A | N/A | N/A | N/A | NOT TESTED |
-| Embench rv32gc | N/A | N/A | N/A | N/A | NOT TESTED |
-| benchmark regression | N/A | N/A | N/A | N/A | NOT TESTED |
 
 ## CoreMark Metrics
 
-| Config | SSTACK Mode | CoreMark/MHz | CPI | MTIME | MINSTRET | Load Stalls | Store Stalls | D$ Misses | I$ Misses | Branch Mispredicts |
-| ------ | ----------- | ------------ | --- | ----- | -------- | ----------- | ------------ | --------- | --------- | ------------------- |
-| rv64gc | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
-
-## Embench Metrics
-
-| Config | SSTACK Mode | Speed Result | Size Result | Geomean | Notes |
-| ------ | ----------- | ------------ | ----------- | ------- | ----- |
-| rv32gc | N/A | N/A | N/A | N/A | N/A |
+| Metric | SSTACK Disabled | SSTACK Enabled | Delta | Relative % | Better Direction |
+| ------ | --------------- | -------------- | ----- | ---------- | ---------------- |
+| CoreMark/MHz | N/A | N/A | N/A | N/A | higher |
+| CPI | N/A | N/A | N/A | N/A | lower |
+| Elapsed MTIME | N/A | N/A | N/A | N/A | lower |
+| Elapsed MINSTRET | N/A | N/A | N/A | N/A | lower/same |
+| Load Stalls | N/A | N/A | N/A | N/A | lower |
+| Store Stalls | N/A | N/A | N/A | N/A | lower |
+| D-Cache Accesses | N/A | N/A | N/A | N/A | context |
+| D-Cache Misses | N/A | N/A | N/A | N/A | lower |
+| I-Cache Accesses | N/A | N/A | N/A | N/A | context |
+| I-Cache Misses | N/A | N/A | N/A | N/A | lower |
+| Branches | N/A | N/A | N/A | N/A | context |
+| Branches Miss Predictions | N/A | N/A | N/A | N/A | lower |
+| BTB Misses | N/A | N/A | N/A | N/A | lower |
+| Jump and JR | N/A | N/A | N/A | N/A | context |
+| RAS Wrong | N/A | N/A | N/A | N/A | lower |
+| Returns | N/A | N/A | N/A | N/A | context |
+| BP Class Wrong | N/A | N/A | N/A | N/A | lower |
 
 ## SSTACK Performance Comparison
 
@@ -35,8 +43,6 @@
 | ---- | ------ | --------------- | -------------- | ----- | ---------- | ---------------- |
 | CoreMark | CoreMark/MHz | N/A | N/A | N/A | N/A | higher |
 | CoreMark | CPI | N/A | N/A | N/A | N/A | lower |
-| Embench | Speed | N/A | N/A | N/A | N/A | higher/lower depends on reported metric |
-| Embench | Size | N/A | N/A | N/A | N/A | lower |
 
 Rules:
 

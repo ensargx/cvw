@@ -1,4 +1,4 @@
-# Validation Checklist
+# Validation Checklist
 
 Before RTL changes:
 
@@ -17,8 +17,12 @@ Performance Checks:
 
 * performance logs directory created
 * CoreMark run completed or failure recorded
-* Embench run completed or failure recorded
-* benchmark regression completed or failure recorded
+* only rv64gc used
+* only CoreMark used
+* SSTACK enabled run completed or failure recorded
+* SSTACK disabled run completed or failure recorded
+* second-pass enabled run completed or failure recorded
+* second-pass disabled run completed or failure recorded
 * logs inspected with grep/rg only
 * completion evidence checked
 * CoreMark/MHz checked when available
