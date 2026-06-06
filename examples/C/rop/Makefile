@@ -1,6 +1,7 @@
 TARGETS = rop_basic rop_direct rop_chain rop_nested \
 	sstack_abi_normal sstack_abi_indirect_normal \
-	sstack_abi_corrupt_direct sstack_abi_corrupt_nested
+	sstack_abi_corrupt_direct sstack_abi_corrupt_nested \
+	sstack_abi_ret5_normal sstack_abi_ret5_corrupt
 
 all: $(TARGETS)
 
