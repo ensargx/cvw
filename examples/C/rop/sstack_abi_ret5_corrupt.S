@@ -103,7 +103,7 @@ f5:
   addi s0, sp, 16
 
   la t0, forbidden_target
-  sd t0, 8(s0)
+  sd t0, 56(s0)
 
   ld s0, 0(sp)
   ld ra, 8(sp)
