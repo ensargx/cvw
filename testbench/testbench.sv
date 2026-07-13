@@ -41,7 +41,6 @@ module testbench;
   /* verilator lint_off WIDTHEXPAND */
   parameter DEBUG=0;
   parameter PrintHPMCounters=0;
-  parameter SSTACK_ENABLED=1;
   parameter BPRED_LOGGER=0;
   parameter I_CACHE_ADDR_LOGGER=0;
   parameter D_CACHE_ADDR_LOGGER=0;
@@ -111,7 +110,6 @@ module testbench;
   logic        SPIIn, SPIOut;
   logic [3:0]  SPICS;
   logic        SPICLK;
-  logic        SStackViolationM;
   logic        SDCCmd;
   logic        SDCIn;
   logic [3:0]  SDCCS;
@@ -663,15 +661,11 @@ module testbench;
 
   end
 
-  wallypipelinedsoc  #(.P(P), .SSTACK_ENABLED(SSTACK_ENABLED)) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
+  wallypipelinedsoc  #(P) dut(.clk, .reset_ext, .reset, .ExternalStall(RVVIStall),
     .HRDATAEXT, .HREADYEXT, .HRESPEXT, .HSELEXT,
     .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB, .HWRITE, .HSIZE, .HBURST, .HPROT,
     .HTRANS, .HMASTLOCK, .HREADY, .TIMECLK(1'b0), .GPIOIN, .GPIOOUT, .GPIOEN,
-    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SStackViolationM,
-    .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
-
-  always_ff @(posedge clk)
-    if (SStackViolationM) $display("ROP DETECTED");
+    .UARTSin, .UARTSout, .SPIIn, .SPIOut, .SPICS, .SPICLK, .SDCIn, .SDCCmd, .SDCCS, .SDCCLK);
 
   // generate clock to sequence tests
   always begin

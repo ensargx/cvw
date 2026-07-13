@@ -30,7 +30,7 @@
 module trap import cvw::*;  #(parameter cvw_t P) (
   input  logic                 reset,
   input  logic                 InstrMisalignedFaultM, InstrAccessFaultM, HPTWInstrAccessFaultM, HPTWInstrPageFaultM, IllegalInstrFaultM,
-  input  logic                 BreakpointFaultM, SStackViolationM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
+  input  logic                 BreakpointFaultM, LoadMisalignedFaultM, StoreAmoMisalignedFaultM,
   input  logic                 LoadAccessFaultM, StoreAmoAccessFaultM, EcallFaultM, InstrPageFaultM,
   input  logic                 LoadPageFaultM, StoreAmoPageFaultM,              // various trap sources
   input  logic                 wfiM, wfiW,                                      // wait for interrupt instruction
@@ -52,9 +52,6 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   logic                        Committed;                                       // LSU or IFU has committed to a bus operation that can't be interrupted
   logic                        BothInstrAccessFaultM, BothInstrPageFaultM;      // instruction or HPTW ITLB fill caused an Instruction Access Fault
   logic [11:0]                 PendingIntsM, ValidIntsM, EnabledIntsM;          // interrupts are pending, valid, or enabled
-  logic                        ExceptionDelegableM;                          // exception cause can index MEDELEG
-
-  localparam logic [4:0] SHADOW_STACK_CAUSE = 5'd16;                       // custom: shadow stack violation
 
   ///////////////////////////////////////////
   // Determine pending enabled interrupts
@@ -72,8 +69,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
   assign ValidIntsM    = Committed ? '0 : EnabledIntsM;
   assign InterruptM    = (|ValidIntsM) & InstrValidM & (~wfiM | wfiW); // suppress interrupt if the memory system has partially processed a request. Delay interrupt until wfi is in the W stage.
   // wfiW is to support possible but unlikely back to back wfi instructions. wfiM would be high in the M stage, while also in the W stage.
-  assign ExceptionDelegableM = ~CauseM[4];
-  assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : (ExceptionDelegableM & MEDELEG_REGW[CauseM[3:0]])) &
+  assign DelegateM     = P.S_SUPPORTED & (InterruptM ? MIDELEG_REGW[CauseM[3:0]] : MEDELEG_REGW[CauseM[3:0]]) &
                      (PrivilegeModeW == P.U_MODE | PrivilegeModeW == P.S_MODE);
 
   ///////////////////////////////////////////
@@ -90,7 +86,7 @@ module trap import cvw::*;  #(parameter cvw_t P) (
                       LoadMisalignedFaultM | StoreAmoMisalignedFaultM |
                       BothInstrPageFaultM | LoadPageFaultM | StoreAmoPageFaultM |
                       BreakpointFaultM | EcallFaultM |
-                      LoadAccessFaultM | StoreAmoAccessFaultM | SStackViolationM;
+                      LoadAccessFaultM | StoreAmoAccessFaultM;
   // coverage on
   assign TrapM = (ExceptionM & ~CommittedF) | InterruptM;
 
@@ -113,7 +109,6 @@ module trap import cvw::*;  #(parameter cvw_t P) (
     // Misaligned instructions cannot occur in rv64gc
     else if (InstrMisalignedFaultM)                           CauseM = 5'd0;
     // coverage on
-    else if (SStackViolationM)                                CauseM = SHADOW_STACK_CAUSE;
     else if (BreakpointFaultM)                                CauseM = 5'd3;
     else if (EcallFaultM)                                     CauseM = {3'b010, PrivilegeModeW};
     else if (StoreAmoMisalignedFaultM & ~P.ZICCLSM_SUPPORTED) CauseM = 5'd6;  // misaligned faults are higher priority if they always are taken

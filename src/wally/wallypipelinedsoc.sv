@@ -27,8 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module wallypipelinedsoc import cvw::*; #(parameter cvw_t P,
-                                          parameter logic SSTACK_ENABLED = 1'b1)  (
+module wallypipelinedsoc import cvw::*; #(parameter cvw_t P)  (
   input  logic                clk,
   input  logic                reset_ext,        // external asynchronous reset pin
   output logic                reset,            // reset synchronized to clk to prevent races on release
@@ -61,7 +60,6 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P,
   output logic                SPIOut,           // SPI pins out
   output logic [3:0]          SPICS,            // SPI chip select pins
   output logic                SPICLK,           // SPI clock
-  output logic                SStackViolationM, // shadow stack detected a return-address violation
   input  logic                SDCIn,            // SDC DATA[0]     to     SPI DI
   output logic                SDCCmd,           // SDC CMD         from   SPI DO
   output logic [3:0]          SDCCS,            // SDC Card Detect from   SPI CS
@@ -79,10 +77,10 @@ module wallypipelinedsoc import cvw::*; #(parameter cvw_t P,
   synchronizer resetsync(.clk, .d(reset_ext), .q(reset));
 
   // instantiate processor and internal memories
-  wallypipelinedcore #(.P(P), .SSTACK_ENABLED(SSTACK_ENABLED)) core(.clk, .reset,
+  wallypipelinedcore #(P) core(.clk, .reset,
     .MTimerInt, .MExtInt, .SExtInt, .MSwInt, .MTIME_CLINT,
     .HRDATA, .HREADY, .HRESP, .HCLK, .HRESETn, .HADDR, .HWDATA, .HWSTRB,
-    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .SStackViolationM, .ExternalStall
+    .HWRITE, .HSIZE, .HBURST, .HPROT, .HTRANS, .HMASTLOCK, .ExternalStall
    );
 
   // instantiate uncore if a bus interface exists

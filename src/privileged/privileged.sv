@@ -71,7 +71,6 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   input  logic              LoadPageFaultM, StoreAmoPageFaultM,             // page faults
   input  logic              InstrMisalignedFaultM,                          // misaligned instruction fault
   input  logic              LoadMisalignedFaultM, StoreAmoMisalignedFaultM, // misaligned data fault
-  input  logic              SStackViolationM,                               // shadow stack detected a return-address violation
   input  logic              IllegalIEUFPUInstrD,                            // illegal instruction from IEU or FPU
   input  logic              MTimerInt, MExtInt, SExtInt, MSwInt,            // interrupt sources
   input  logic [63:0]       MTIME_CLINT,                                    // timer value from CLINT
@@ -159,7 +158,7 @@ module privileged import cvw::*;  #(parameter cvw_t P) (
   // trap logic
   trap #(P) trap(.reset,
     .InstrMisalignedFaultM, .InstrAccessFaultM, .HPTWInstrAccessFaultM, .HPTWInstrPageFaultM, .IllegalInstrFaultM,
-    .BreakpointFaultM, .SStackViolationM, .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
+    .BreakpointFaultM, .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
     .LoadAccessFaultM, .StoreAmoAccessFaultM, .EcallFaultM, .InstrPageFaultM,
     .LoadPageFaultM, .StoreAmoPageFaultM, .PrivilegeModeW,
     .MIP_REGW, .MIE_REGW, .MIDELEG_REGW, .MEDELEG_REGW, .STATUS_MIE, .STATUS_SIE,

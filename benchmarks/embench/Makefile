@@ -69,8 +69,8 @@ actual_embench_results:
 
 # python wrapper to present results of embench size benchmark
 size: actual_embench_results buildsize
-	uv run $(embench_dir)/benchmark_size.py --builddir=bd_speedopt_size --json-output > actual_embench_results/wallySpeedOpt_size.json
-	uv run $(embench_dir)/benchmark_size.py --builddir=bd_sizeopt_size --json-output > actual_embench_results/wallySizeOpt_size.json
+	$(embench_dir)/benchmark_size.py --builddir=bd_speedopt_size --json-output > actual_embench_results/wallySpeedOpt_size.json
+	$(embench_dir)/benchmark_size.py --builddir=bd_sizeopt_size --json-output > actual_embench_results/wallySizeOpt_size.json
 
 # python wrapper to present results of embench speed benchmark
 speed: actual_embench_results

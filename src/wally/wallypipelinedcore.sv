@@ -27,8 +27,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
-                                           parameter logic SSTACK_ENABLED = 1'b1) (
+module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
    input  logic                  clk, reset,
    // Privileged
    input  logic                  MTimerInt, MExtInt, SExtInt, MSwInt,
@@ -46,7 +45,6 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
    output logic [3:0]            HPROT,
    output logic [1:0]            HTRANS,
    output logic                  HMASTLOCK,
-   output logic                  SStackViolationM,
    input  logic                  ExternalStall
 );
 
@@ -174,9 +172,9 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
   logic                          wfiM, IntPendingM;
 
   // instruction fetch unit: PC, branch prediction, instruction cache
-  ifu #(.P(P), .SSTACK_ENABLED(SSTACK_ENABLED)) ifu(.clk, .reset,
+  ifu #(P) ifu(.clk, .reset,
     .StallF, .StallD, .StallE, .StallM, .StallW, .FlushD, .FlushE, .FlushM, .FlushW,
-    .InstrValidE, .InstrValidD, .InstrValidM,
+    .InstrValidE, .InstrValidD,
     .BranchD, .BranchE, .JumpD, .JumpE, .ICacheStallF,
     // Fetch
     .HRDATA, .PCSpillF, .IFUHADDR,
@@ -194,7 +192,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
     .PrivilegeModeW, .PTE, .PageType, .SATP_REGW, .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV,
     .STATUS_MPP, .ENVCFG_PBMTE, .ENVCFG_ADUE, .ITLBWriteF, .sfencevmaM, .ITLBMissOrUpdateAF,
     // pmp/pma (inside mmu) signals.
-    .PMPCFG_ARRAY_REGW,  .PMPADDR_ARRAY_REGW, .InstrAccessFaultF, .SStackViolationM);
+    .PMPCFG_ARRAY_REGW,  .PMPADDR_ARRAY_REGW, .InstrAccessFaultF);
 
   // integer execution unit: integer register file, datapath and controller
   ieu #(P) ieu(.clk, .reset,
@@ -301,7 +299,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P,
       .IClassM, .DCacheMiss, .DCacheAccess, .ICacheMiss, .ICacheAccess, .PrivilegedM,
       .InstrPageFaultF, .LoadPageFaultM, .StoreAmoPageFaultM,
       .InstrMisalignedFaultM, .IllegalIEUFPUInstrD,
-      .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM, .SStackViolationM,
+      .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
       .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
