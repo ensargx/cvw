@@ -80,7 +80,8 @@ module loggers import cvw::*; #(parameter cvw_t P,
                             "SFenceVMA",
                             "Interrupt",
                             "Exception",
-                            "Divide Cycles"
+                            "Divide Cycles",
+                            "Call"
                           };
 
 

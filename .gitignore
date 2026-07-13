@@ -92,6 +92,7 @@ sim/*.svg
 sim/power.saif
 sim/results
 sim/results-error/
+sim/sstack-bench/
 sim/test1.rep
 sim/branch
 sim/branch-march14.tar.gz
@@ -163,6 +164,10 @@ examples/C/sum/sum
 examples/C/sum_mixed/sum_mixed
 examples/C/hello/hello
 examples/C/gpio/gpio
+examples/C/rop/hello
+examples/C/rop/rop_chain
+examples/C/rop/rop_direct
+examples/C/rop/rop_nested
 examples/asm/sumtest/sumtest
 examples/asm/example/example
 examples/asm/trap/trap

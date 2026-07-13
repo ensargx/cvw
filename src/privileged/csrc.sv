@@ -121,8 +121,9 @@ module csrc  import cvw::*;  #(parameter cvw_t P) (
     // coverage off
     // DivBusyE will never be asserted high because the RV64GC configuration uses the FPU to do integer division
     assign CounterEvent[24] = DivBusyE | FDivBusyE;                                      // division cycles
+    assign CounterEvent[25] = IClassM[3] & InstrValidNotFlushedM;                        // call instructions
     // coverage on
-    assign CounterEvent[P.COUNTERS-1:25] = '0; // eventually give these sources, including FP instructions, I$/D$ misses, branches and mispredictions
+    assign CounterEvent[P.COUNTERS-1:26] = '0; // eventually give these sources, including FP instructions, I$/D$ misses, branches and mispredictions
   end else begin : cevent
     assign CounterEvent[P.COUNTERS-1:3] = '0;
   end

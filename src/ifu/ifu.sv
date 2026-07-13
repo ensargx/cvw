@@ -26,7 +26,8 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-module ifu import cvw::*;  #(parameter cvw_t P) (
+module ifu import cvw::*;  #(parameter cvw_t P,
+                             parameter logic SSTACK_ENABLED = 1'b1) (
   input  logic                 clk, reset,
   input  logic                 StallF, StallD, StallE, StallM, StallW,
   input  logic                 FlushD, FlushE, FlushM, FlushW,
@@ -34,7 +35,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   // Command from CPU
   input  logic                 InvalidateICacheM,                        // Clears all instruction cache valid bits
   input  logic                 CSRWriteFenceM,                           // CSR write or fence instruction, PCNextF = the next valid PC (typically PCE)
-  input  logic                 InstrValidD, InstrValidE,
+  input  logic                 InstrValidD, InstrValidE, InstrValidM,
   input  logic                 BranchD, BranchE,
   input  logic                 JumpD, JumpE,
   // Bus interface
@@ -96,7 +97,8 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   input  var logic [P.PA_BITS-3:0] PMPADDR_ARRAY_REGW[P.PMP_ENTRIES-1:0],// PMP address from privileged unit
   output logic                 InstrAccessFaultF,                        // Instruction access fault
   output logic                 ICacheAccess,                             // Report I$ read to performance counters
-  output logic                 ICacheMiss                                // Report I$ miss to performance counters
+  output logic                 ICacheMiss,                               // Report I$ miss to performance counters
+  output logic                 SStackViolationM                          // Shadow stack detected a return-address violation
 );
 
   localparam [31:0]            nop = 32'h00000013;                       // instruction for NOP
@@ -377,6 +379,118 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Decode stage pipeline register and compressed instruction decoding.
   ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  if (SSTACK_ENABLED) begin : shadowstk
+
+    logic CallD,   CallE,   CallM;
+    logic ReturnD, ReturnE, ReturnM;
+    logic [P.XLEN-1:0] PCLinkM;
+
+    assign ReturnD = JumpD & ((InstrD[19:15] & 5'h1B) == 5'h01);
+    assign CallD   = JumpD & ((InstrD[11:7]  & 5'h1B) == 5'h01);
+
+    flopenrc #(2) InstrClassRegE(clk, reset, FlushE, ~StallE,
+                                 {CallD, ReturnD}, {CallE, ReturnE});
+    flopenrc #(2) InstrClassRegM(clk, reset, FlushM, ~StallM,
+                                 {CallE, ReturnE}, {CallM, ReturnM});
+    flopenrc #(P.XLEN) PCLinkMReg(clk, reset, FlushM, ~StallM, PCLinkE, PCLinkM);
+
+    localparam int SS_MEM_DEPTH = 1024;
+    localparam int SS_MEM_AW    = $clog2(SS_MEM_DEPTH);
+    localparam int SS_MEM_WIDTH = P.XLEN+4;
+
+    logic [SS_MEM_AW-1:0] ss_mem_sp;
+    logic [SS_MEM_AW-1:0] ss_mem_raddr;
+    logic [SS_MEM_AW-1:0] ss_mem_waddr;
+    logic [SS_MEM_WIDTH-1:0] ss_mem_wdata;
+    logic [SS_MEM_WIDTH-1:0] ss_mem_rdata;
+    logic                 ss_mem_we;
+
+    logic [P.XLEN-1:0] ss_cache [0:1];
+    logic [1:0]        ss_cnt;
+
+    logic [P.XLEN-1:0] ss_expected;
+    logic [P.XLEN-1:0] ss_return_target;
+    logic              ss_overflow, ss_underflow, ss_mismatch, ss_violation_raw;
+    always_comb begin
+      case (ss_cnt)
+        2'd1:    ss_expected = ss_cache[0];
+        2'd2:    ss_expected = ss_cache[1];
+        default: ss_expected = '0;
+      endcase
+    end
+
+    assign ss_return_target = {IEUAdrM[P.XLEN-1:1], 1'b0};
+
+    wire ss_op = InstrValidM & ~StallM & ~FlushM;
+    assign ss_overflow       = CallM & (ss_cnt == 2'd2) & (ss_mem_sp == {SS_MEM_AW{1'b1}});
+    assign ss_underflow      = ReturnM & (ss_cnt == 2'd0);
+    assign ss_mismatch       = ReturnM & (ss_cnt != 2'd0) & (ss_expected != ss_return_target);
+    assign ss_violation_raw = ss_overflow | ss_underflow | ss_mismatch;
+    assign SStackViolationM  = InstrValidM & ss_violation_raw;
+
+    assign ss_mem_raddr = (ss_mem_sp == '0) ? '0 : ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+    assign ss_mem_waddr = ss_mem_sp;
+    assign ss_mem_wdata = {{(SS_MEM_WIDTH-P.XLEN){1'b0}}, ss_cache[0]};
+    assign ss_mem_we    = ss_op & CallM & (ss_cnt == 2'd2) & (ss_mem_sp != {SS_MEM_AW{1'b1}});
+
+    ram2p1r1wbe #(.USE_SRAM(P.USE_SRAM), .DEPTH(SS_MEM_DEPTH), .WIDTH(SS_MEM_WIDTH)) ssram(
+      .clk, .ce1(1'b1), .ra1(ss_mem_raddr), .rd1(ss_mem_rdata),
+      .ce2(1'b1), .wa2(ss_mem_waddr), .wd2(ss_mem_wdata), .we2(ss_mem_we), .bwe2('1));
+
+    always_ff @(posedge clk) begin
+      if (reset) begin
+        ss_mem_sp   <= '0;
+        ss_cnt      <= 2'd0;
+        ss_cache[0] <= '0;
+        ss_cache[1] <= '0;
+
+      end else if (ss_op) begin
+
+        if (CallM) begin
+          case (ss_cnt)
+            2'd0: begin
+              ss_cache[0] <= PCLinkM;
+              ss_cnt      <= 2'd1;
+            end
+            2'd1: begin
+              ss_cache[1] <= PCLinkM;
+              ss_cnt      <= 2'd2;
+            end
+            2'd2: begin
+              if (ss_mem_sp != {SS_MEM_AW{1'b1}}) begin
+                ss_mem_sp   <= ss_mem_sp + {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+                ss_cache[0] <= ss_cache[1];
+                ss_cache[1] <= PCLinkM;
+              end
+            end
+            default: ;
+          endcase
+
+        end else if (ReturnM) begin
+          case (ss_cnt)
+            2'd1: begin
+              ss_cnt <= 2'd0;
+            end
+            2'd2: begin
+              if (ss_mem_sp != '0) begin
+                ss_cache[1] <= ss_cache[0];
+                ss_cache[0] <= ss_mem_rdata[P.XLEN-1:0];
+                ss_mem_sp   <= ss_mem_sp - {{(SS_MEM_AW-1){1'b0}}, 1'b1};
+              end else begin
+                ss_cnt <= 2'd1;
+              end
+            end
+            default: ;
+          endcase
+
+        end
+      end
+    end
+
+  end else begin : shadowstk
+    assign SStackViolationM = 1'b0;
+  end // shadowstk
 
   // Decode stage pipeline register and logic
   flopenrc #(P.XLEN) PCDReg(clk, reset, FlushD, ~StallD, PCF, PCD);
